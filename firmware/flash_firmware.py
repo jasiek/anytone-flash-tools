@@ -45,7 +45,14 @@ with file:
 file.close
 
 if len(spifile) != 51:
-   sys.exit("ERROR: " + firmwarefilename + " size is expected to be 51 bytes and not " + len(spifile) + " bytes!")
+   sys.exit("ERROR: " + firmwarefilename + " size is expected to be 51 bytes and not " + str(len(spifile)) + " bytes!")
+
+# Model names longer than 6 chars (e.g. D878UV2 for the D878UVII) spill into
+# bytes 20-21. Name the model instead of failing with a generic format error.
+if spifile[20:22] != b'  ' and spifile[14:15] != b' ':
+   longmodel = spifile[14:22].rstrip(b' ').decode('ascii', 'replace')
+   sys.exit("ERROR: This firmware is for model " + longmodel + ", not a 6-character model like D878UV. "
+            "D878UVII (D878UV2) and D878UV firmware are not interchangeable, and this tool only supports 6-character models.")
 
 if spifile[0:6] != b' \x00\x00\x00\x01\x00' \
    or spifile[10:14] != b'\x00\x00\x00\x00' \
@@ -111,8 +118,12 @@ with file:
    cddfile = file.read()
 file.close
 
-if len(cddfile) != filesize:
+# The official CPS only rejects a .CDD that is too short and reads exactly
+# filesize bytes; some releases carry trailing bytes beyond that.
+if len(cddfile) < filesize:
    sys.exit("ERROR: " + firmwarefilename[0:-3] + "CDD" + " size is expected to be " + str(filesize) + " bytes and not " + str(len(cddfile)) + " bytes!")
+elif len(cddfile) > filesize:
+   print("WARNING: .CDD has " + str(len(cddfile) - filesize) + " trailing bytes beyond " + str(filesize) + "; ignoring them (same as the official CPS).\n")
 else:
    print("File size OK.\n")
 
